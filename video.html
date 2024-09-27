@@ -1,0 +1,136 @@
+<!DOCTYPE html>  
+<html>  
+<head>  
+    <title>大视频文件上传--进度条、提示信息</title>  
+	<meta charset="utf-8">
+    <script src="./js/jquery.js"></script>  
+	<style>  
+	        #progressBar {  
+	            width: 0%;  
+	            height: 30px;  
+	            background-color: #4CAF50;  
+	            text-align: center;  
+	            line-height: 30px;  
+	            color: white;  
+	            transition: width 0.4s ease-in-out;  
+	        }  
+			.jdt_wkj{
+				width: 200px;
+				height: 25px;
+				border: 1px solid darkgray;
+				box-sizing: border-box;
+				margin-top: 10px;
+				display: none;
+			}
+			.ts{
+				color: #4CAF50;
+			}
+			.myvideo{
+				display: none;
+			}
+	    </style>  
+</head> 
+ 
+<body>  
+		<!-- accept:上传仅选择视频 -->
+    <input type="file" id="videoFile" accept="video/*" onchange="startUpload()"> <span class="ts"></span>
+	<div class="jdt_wkj">
+		<div id="progressBar" style="width: 0%;height: 100%;">0%</div>
+	</div>
+	<br>
+	<video class="myvideo" style="width: 150px;height: auto;" src="" controls></video>
+	
+</body>  
+</html>
+
+<script>
+ 	
+		function startUpload() {  
+			//开始上传，进度条出现
+				$('.jdt_wkj').show();
+			//获取上传文件
+				const file = $('#videoFile')[0].files[0];  
+			//获取文件不成功，则失败
+				if (!file) {  
+					alert('选择文件类型');  
+					return;  
+				}  
+			//设置上传切开大小
+				const chunkSize = 1024 * 1024; // 1MB per chunk  
+		    let offset = 0;  
+			//计算切块总数量
+				let totalChunks = Math.ceil(file.size / chunkSize);  
+		    let currentChunk = 0;  
+			
+			//计算div块宽度及div内容
+				function updateProgressBar(percentage) {  
+					 // 仅在显示文本时四舍五入到两位小数  
+						const roundedPercentageText = (Math.round(percentage * 100) / 100).toFixed(2) + '%';  
+						$('#progressBar').css('width', percentage + '%').text(roundedPercentageText);  
+				}  
+			//视频进行切块处理
+		    function uploadChunk(blob, index) {  
+				//上传的视频数据(对象数据)
+					const formData = new FormData();  
+		        formData.append('chunk', blob);  //切块文件
+		        formData.append('filename', file.name);   //文件名称
+		        formData.append('offset', offset);   //偏移量
+				formData.append('totalChunks',totalChunks);  //将总块数发送过去
+				formData.append('chunkIndex',index);  //将每一块的索引发送过去
+		  
+		        $.ajax({  
+		            url: 'index.php',  
+		            type: 'POST',  
+		            data: formData,  
+		            processData: false,  
+		            contentType: false,  
+		            xhr: function() {  
+		                const xhr = new window.XMLHttpRequest();  
+		                xhr.upload.onprogress = function(e) {  
+		                    if (e.lengthComputable) {  
+		                        const percentComplete = (e.loaded / e.total) * 100;  
+		                        // Adjust the progress bar for the current chunk  
+		                        const chunkProgress = (index + 1) / totalChunks * 100;  
+		                        const adjustedProgress = Math.min(percentComplete / (100 / chunkProgress), 100);  
+		                        updateProgressBar(adjustedProgress);  
+		                    }  
+		                };  
+		                return xhr;  
+		            },  
+		            success: function(response) {  
+		                console.log(response);  
+		                offset += blob.size;  
+		                currentChunk++;  
+		                if (currentChunk < totalChunks) {  
+		                    const blobEnd = Math.min(file.size, offset + chunkSize);  
+		                    const nextBlob = file.slice(offset, blobEnd);  
+		                    uploadChunk(nextBlob, currentChunk);  
+		                } else {  
+		                    updateProgressBar(100); // Ensure progress bar reaches 100%  
+							//上传成功后提示信息
+							
+							$('.jdt_wkj').hide();
+							
+							//json字符串转json对象
+								var responses =JSON.parse(response);
+							//上传成功后的提示信息
+								$('.ts').text(responses.message);
+							//上传成功后返回的视频路径
+								console.log(responses.filePath);
+								$('.myvideo').show().attr('src',responses.filePath);
+								
+		                } 
+						 
+						
+		            },  
+		            error: function() {  
+		                console.error('上传失败');  
+		            }  
+		        });  
+		    }  
+		  
+		    const firstBlob = file.slice(offset, offset + chunkSize);  
+		    uploadChunk(firstBlob, 0);  
+		}
+ 	
+ </script>
